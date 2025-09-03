@@ -47,15 +47,23 @@ public class KurrentDbSubscriber
         IDispatcher<ResolvedEvent> dispatcher,
         string streamName,
         ILogger logger,
-        ulong? startingPosition)
-        => Init(kurrentDbClient, dispatcher, streamName, logger, startingPosition);
+        ulong? startingPosition,
+        IEventFilter eventFilter = null)
+        => Init(
+            kurrentDbClient,
+            dispatcher,
+            streamName,
+            logger,
+            startingPosition: startingPosition,
+            eventFilter: eventFilter);
 
     private KurrentDbSubscriber(
         KurrentDBClient kurrentDbClient,
         IDispatcher<ResolvedEvent> dispatcher,
         ILogger logger,
         string streamName,
-        string checkpointFilePath)
+        string checkpointFilePath,
+        IEventFilter eventFilter = null)
     {
         _checkpoint = new WriteThroughFileCheckpoint(checkpointFilePath, -1);
         var initialCheckpointPosition = _checkpoint.Read();
@@ -66,7 +74,7 @@ public class KurrentDbSubscriber
             startingPosition = (ulong)initialCheckpointPosition;
         }
 
-        Init(kurrentDbClient, dispatcher, streamName, logger, startingPosition);
+        Init(kurrentDbClient, dispatcher, streamName, logger, startingPosition, eventFilter: eventFilter);
     }
 
     private KurrentDbSubscriber(
@@ -150,17 +158,20 @@ public class KurrentDbSubscriber
     /// <param name="kurrentDbClient">KurrentDB connection.</param>
     /// <param name="dispatcher">Dispatcher.</param>
     /// <param name="logger">Logger.</param>
+    /// <param name="eventFilter">A filter for server side event filtering.</param>
     /// <returns>A new KurrentDbSubscriber object.</returns>
     public static KurrentDbSubscriber CreateCatchupSubscriptionSubscribedToAll(
         KurrentDBClient kurrentDbClient,
         IDispatcher<ResolvedEvent> dispatcher,
-        ILogger logger)
+        ILogger logger,
+        IEventFilter eventFilter = null)
         => new KurrentDbSubscriber(
             kurrentDbClient,
             dispatcher,
             AllStreamName,
             logger,
-            null);
+            null,
+            eventFilter: eventFilter);
 
     /// <summary>
     /// Creates an KurrentDB catchup subscription that is subscribed to all from a position.
@@ -169,18 +180,21 @@ public class KurrentDbSubscriber
     /// <param name="dispatcher">Dispatcher.</param>
     /// <param name="logger">Logger.</param>
     /// <param name="startingPosition">Starting Position.</param>
+    /// <param name="eventFilter">A filter for server side event filtering.</param>
     /// <returns>A new KurrentDbSubscriber object.</returns>
     public static KurrentDbSubscriber CreateCatchupSubscriptionSubscribedToAllFromPosition(
         KurrentDBClient kurrentDbClient,
         IDispatcher<ResolvedEvent> dispatcher,
         ILogger logger,
-        ulong? startingPosition)
+        ulong? startingPosition,
+        IEventFilter eventFilter = null)
         => new KurrentDbSubscriber(
             kurrentDbClient,
             dispatcher,
             AllStreamName,
             logger,
-            startingPosition);
+            startingPosition,
+            eventFilter);
 
     /// <summary>
     /// Creates an KurrentDB catchup subscription subscribed to all using a checkpoint file.
@@ -189,18 +203,21 @@ public class KurrentDbSubscriber
     /// <param name="dispatcher">Dispatcher.</param>
     /// <param name="logger">Logger.</param>
     /// <param name="checkpointFilePath">Path of the checkpoint file.</param>
+    /// <param name="eventFilter">A filter for server side event filtering.</param>
     /// <returns>A new KurrentDbSubscriber object.</returns>
     public static KurrentDbSubscriber CreateCatchupSubscriptionSubscribedToAllUsingCheckpoint(
         KurrentDBClient kurrentDbClient,
         IDispatcher<ResolvedEvent> dispatcher,
         ILogger logger,
-        string checkpointFilePath)
+        string checkpointFilePath,
+        IEventFilter eventFilter = null)
         => new KurrentDbSubscriber(
                 kurrentDbClient,
                 dispatcher,
                 logger,
                 AllStreamName,
-                checkpointFilePath);
+                checkpointFilePath,
+                eventFilter);
 
     /// <summary>
     /// Start the subscriber.
@@ -308,13 +325,13 @@ public class KurrentDbSubscriber
     /// </summary>
     public void ShutDown() => _cts.Cancel();
 
-    private void Init(
-        KurrentDBClient connection,
+    private void Init(KurrentDBClient connection,
         IDispatcher<ResolvedEvent> dispatcher,
         string streamName,
         ILogger logger,
         ulong? startingPosition = null,
-        bool liveOnly = false)
+        bool liveOnly = false,
+        IEventFilter eventFilter = null)
     {
         _logger = logger;
         _startingPosition = startingPosition;
@@ -333,7 +350,8 @@ public class KurrentDbSubscriber
                         Direction.Backwards,
                         Position.End,
                         maxCount: 1,
-                        resolveLinkTos: false)
+                        resolveLinkTos: false,
+                        eventFilter: eventFilter)
                     .ToListAsync();
 
                 _actualEndOfStreamPosition = lastEventFromStream.First().OriginalEvent.Position.CommitPosition;
