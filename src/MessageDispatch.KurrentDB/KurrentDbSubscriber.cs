@@ -33,7 +33,7 @@ public class KurrentDbSubscriber
     private CancellationTokenSource _cts;
     private DateTime _lastStreamPositionTimestamp;
     private Func<Task> _setLastPositions;
-
+    private IEventFilter _eventFilter;
     private IDispatcher<ResolvedEvent> _dispatcher;
     private ILogger _logger;
 
@@ -294,7 +294,7 @@ public class KurrentDbSubscriber
 
     private StreamSubscriptionResult CreateSubscription()
     {
-        var filterOptions = new SubscriptionFilterOptions(EventTypeFilter.ExcludeSystemEvents(), checkpointInterval: CheckpointInterval);
+        var filterOptions = new SubscriptionFilterOptions(_eventFilter ?? EventTypeFilter.ExcludeSystemEvents(), checkpointInterval: CheckpointInterval);
 
         const bool resolveLinkTos = true;
 
@@ -333,6 +333,7 @@ public class KurrentDbSubscriber
         bool liveOnly = false,
         IEventFilter eventFilter = null)
     {
+        _eventFilter = eventFilter;
         _logger = logger;
         _startingPosition = startingPosition;
         _lastProcessedEventPosition = startingPosition;
